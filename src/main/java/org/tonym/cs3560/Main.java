@@ -1,25 +1,27 @@
 package org.tonym.cs3560;
 
 import javafx.application.Application;
-import javafx.scene.Scene;
-import javafx.scene.control.Label;
-import javafx.scene.layout.StackPane;
 import javafx.stage.Stage;
 
-public class Main extends Application {
+public class Main extends Application
+{
+        private final StudentManager studentManager = new StudentManager();
+
+        public static void main(String[] args)
+        {
+	      HibernateHelper.getSessionFactory();
+	      launch(args);
+        }
 
         @Override
-        public void start(Stage stage) {
-	      String javaVersion = System.getProperty("java.version");
-	      String javafxVersion = System.getProperty("javafx.version");
-	      Label l = new Label("Hello, JavaFX " + javafxVersion + ", running on Java " + javaVersion + ".");
-	      Scene scene = new Scene(new StackPane(l), 640, 480);
-	      stage.setScene(scene);
-	      stage.show();
+        public void start(Stage primaryStage)
+        {
+
         }
 
-        public static void main(String[] args) {
-	      launch();
+        @Override
+        public void stop()
+        {
+	      HibernateHelper.shutdown();
         }
-
 }
