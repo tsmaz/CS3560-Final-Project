@@ -12,7 +12,7 @@ public class Student
 
         @Id
         @Column(name = "bronco_id", nullable = false, unique = true)
-        private String broncoId;
+        private int broncoId;
 
         @Column(name = "name", nullable = false)
         private String name;
@@ -31,7 +31,7 @@ public class Student
         {
         }
 
-        public Student(String broncoId, String name, String address, String degree)
+        public Student(int broncoId, String name, String address, String degree)
         {
 	      this.broncoId = broncoId;
 	      this.name = name;
@@ -40,12 +40,12 @@ public class Student
         }
 
         // Getters and Setters
-        public String getBroncoId()
+        public int getBroncoId()
         {
 	      return broncoId;
         }
 
-        public void setBroncoId(String broncoId)
+        public void setBroncoId(int broncoId)
         {
 	      this.broncoId = broncoId;
         }
