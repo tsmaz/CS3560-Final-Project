@@ -40,10 +40,11 @@ public class Book
         {
         }
 
-        public Book(String isbn, String title, String authors, int numPages, String publisher, LocalDate publicationDate)
+        public Book(String isbn, String title, String description, String authors, int numPages, String publisher, LocalDate publicationDate)
         {
 	      this.isbn = isbn;
 	      this.title = title;
+	      this.description = description;
 	      this.authors = authors;
 	      this.numPages = numPages;
 	      this.publisher = publisher;

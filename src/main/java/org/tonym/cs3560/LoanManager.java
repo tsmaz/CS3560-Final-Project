@@ -12,7 +12,7 @@ import java.util.List;
 	      private static final int MAX_LOAN_DAYS = 180;
 	      private static final int MAX_BORROWED_BOOKS = 5;
 
-	      public void createLoan(Student student, List<BookCopy> bookCopies, int loanDurationInDays)
+	      public Loan createLoan(Student student, List<BookCopy> bookCopies, int loanDurationInDays)
 	      {
 		  Session session = HibernateHelper.getSessionFactory().openSession();
 		  Transaction transaction = session.beginTransaction();
@@ -34,6 +34,8 @@ import java.util.List;
 		  
 		  transaction.commit();
 		  session.close();
+
+		  return loan;
 	      }
 
 	      public void returnLoan(Loan loan)
