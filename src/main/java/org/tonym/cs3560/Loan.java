@@ -50,7 +50,7 @@ public class Loan
 
         public boolean isOverdue()
         {
-
+                return returnDate == null && dueDate.isBefore(LocalDate.now());
         }
 
         // Getters and Setters
