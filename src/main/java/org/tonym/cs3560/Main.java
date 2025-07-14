@@ -10,8 +10,11 @@ import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.stage.Stage;
+import javafx.util.StringConverter;
 
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -21,10 +24,12 @@ public class Main extends Application
       private static final String FONT_STYLE_HEADER = "-fx-font-size: 16px; -fx-font-weight: bold;";
       private static final String FONT_STYLE_SUBHEADER = "-fx-font-size: 14px; -fx-font-weight: bold;";
       private static final Insets PADDING_TEN = new Insets(10);
-      private static final int LEFT_PANEL_WIDTH = 300;
+      private static final int LEFT_PANEL_WIDTH = 600;
       private static final int DETAILS_PANEL_WIDTH = 600;
       private static final int MAIN_LIST_HEIGHT = 400;
       private static final int CHILD_LIST_HEIGHT = 200;
+      
+      private static final DateTimeFormatter AMERICAN_DATE_FORMATTER = DateTimeFormatter.ofPattern("MM/dd/yyyy");
 
       private final StudentManager studentManager = new StudentManager();
       private final LoanManager loanManager = new LoanManager();
@@ -46,6 +51,13 @@ public class Main extends Application
       private VBox bookDetailsPanel;
       private TextField bookIsbnField, bookTitleField, bookDescriptionField, bookAuthorsField;
       private TextField bookPagesField, bookPublisherField, bookPublicationDateField;
+      
+      private final ObservableList<BookCopy> inventoryList = FXCollections.observableArrayList();
+      private final ObservableList<Loan> copyLoanHistoryList = FXCollections.observableArrayList();
+      private ListView<BookCopy> inventoryListView;
+      private ListView<Loan> copyLoanHistoryListView;
+      private VBox inventoryDetailsPanel;
+      private TextField copyBarcodeField, copyLocationField, copyBookTitleField, copyBookIsbnField;
 
       public static void main(String[] args)
       {
@@ -58,7 +70,7 @@ public class Main extends Application
       {
 	  primaryStage.setTitle(APP_TITLE);
 
-	  TabPane tabPane = new TabPane(createStudentsTab(), createBooksTab());
+	  TabPane tabPane = new TabPane(createStudentsTab(), createBooksTab(), createInventoryTab());
 	  Scene scene = new Scene(tabPane, 1200, 800);
 	  primaryStage.setScene(scene);
 
@@ -204,7 +216,24 @@ public class Main extends Application
 			setText(null);
 		    } else
 		    {
-			setText("Barcode: " + copy.getBarCode() + " - Location: " + copy.getLocation());
+			String text = "Barcode: " + copy.getBarCode() + " - Location: " + copy.getLocation();
+			
+			if (copy.getIsAvailable())
+			{
+			    text += " - Status: Available";
+			} else
+			{
+			    Loan activeLoan = loanManager.getActiveLoanByBookCopy(copy);
+			    if (activeLoan != null)
+			    {
+				text += " - Due: " + activeLoan.getDueDate().format(AMERICAN_DATE_FORMATTER) + " (Student: " + activeLoan.getStudent().getName() + ")";
+			    } else
+			    {
+				text += " - Status: Unavailable";
+			    }
+			}
+			
+			setText(text);
 		    }
 	        }
 	  });
@@ -326,7 +355,7 @@ public class Main extends Application
 	  bookAuthorsField.setText(book.getAuthors());
 	  bookPagesField.setText(String.valueOf(book.getNumPages()));
 	  bookPublisherField.setText(book.getPublisher());
-	  bookPublicationDateField.setText(book.getPublicationDate() != null ? book.getPublicationDate().toString() : "");
+	  bookPublicationDateField.setText(book.getPublicationDate() != null ? book.getPublicationDate().format(AMERICAN_DATE_FORMATTER) : "");
 
 	  bookCopiesList.clear();
 	  bookCopiesList.addAll(book.getBookCopies());
@@ -412,7 +441,7 @@ public class Main extends Application
 	  TextField numPages = new TextField();
 	  TextField publisher = new TextField();
 	  TextField publicationDate = new TextField();
-	  publicationDate.setPromptText("YYYY-MM-DD");
+	  publicationDate.setPromptText("MM/DD/YYYY");
 
 	  addFormField(grid, "ISBN:", isbn, 0);
 	  addFormField(grid, "Title:", title, 1);
@@ -431,7 +460,7 @@ public class Main extends Application
 		    try
 		    {
 			int pages = Integer.parseInt(numPages.getText());
-			LocalDate pubDate = LocalDate.parse(publicationDate.getText());
+			LocalDate pubDate = LocalDate.parse(publicationDate.getText(), AMERICAN_DATE_FORMATTER);
 			return new Book(isbn.getText(), title.getText(), description.getText(),
 			        authors.getText(), pages, publisher.getText(), pubDate);
 		    } catch (NumberFormatException e)
@@ -440,7 +469,7 @@ public class Main extends Application
 			return null;
 		    } catch (Exception e)
 		    {
-			showAlert("Invalid Date", "Please enter date in YYYY-MM-DD format.");
+			showAlert("Invalid Date", "Please enter date in MM/DD/YYYY format.");
 			return null;
 		    }
 	        }
@@ -662,7 +691,7 @@ public class Main extends Application
 	        selected.setAuthors(bookAuthorsField.getText());
 	        selected.setNumPages(Integer.parseInt(bookPagesField.getText()));
 	        selected.setPublisher(bookPublisherField.getText());
-	        selected.setPublicationDate(LocalDate.parse(bookPublicationDateField.getText()));
+	        selected.setPublicationDate(LocalDate.parse(bookPublicationDateField.getText(), AMERICAN_DATE_FORMATTER));
 	        bookManager.updateBook(selected);
 	        refreshBooksList();
 	        showAlert("Success", "Book updated successfully!");
@@ -774,6 +803,7 @@ public class Main extends Application
 		    if (createdCopy != null)
 		    {
 			displayBookDetails(selectedBook);
+			refreshInventoryList();
 			showAlert("Success", "Book copy added successfully!");
 		    } else
 		    {
@@ -809,6 +839,7 @@ public class Main extends Application
 		    {
 			bookManager.deleteBookCopy(selectedCopy);
 			displayBookDetails(bookListView.getSelectionModel().getSelectedItem());
+			refreshInventoryList();
 			showAlert("Success", "Book copy deleted successfully!");
 		    } catch (IllegalStateException e)
 		    {
@@ -828,5 +859,310 @@ public class Main extends Application
 	  alert.setHeaderText(null);
 	  alert.setContentText(message);
 	  alert.showAndWait();
+      }
+      
+      private Tab createInventoryTab()
+      {
+	  Tab tab = new Tab("Inventory");
+	  tab.setClosable(false);
+	  
+	  HBox content = new HBox();
+	  content.setPadding(PADDING_TEN);
+	  content.setSpacing(10);
+	  
+	  VBox leftPanel = createInventoryLeftPanel();
+	  leftPanel.setPrefWidth(LEFT_PANEL_WIDTH);
+	  
+	  inventoryDetailsPanel = createInventoryDetailsPanel();
+	  inventoryDetailsPanel.setPrefWidth(DETAILS_PANEL_WIDTH);
+	  inventoryDetailsPanel.setVisible(false);
+	  
+	  content.getChildren().addAll(leftPanel, inventoryDetailsPanel);
+	  tab.setContent(content);
+	  
+	  refreshInventoryList();
+	  
+	  return tab;
+      }
+      
+      private VBox createInventoryLeftPanel()
+      {
+	  VBox panel = new VBox();
+	  panel.setSpacing(10);
+	  panel.setPadding(PADDING_TEN);
+	  
+	  Label title = createHeaderLabel("Book Copies Inventory");
+	  
+	  TextField searchField = new TextField();
+	  searchField.setPromptText("Search by barcode or book title...");
+	  Button searchBtn = new Button("Search");
+	  searchBtn.setOnAction(e -> searchInventory(searchField.getText()));
+	  Button showAllBtn = new Button("Show All");
+	  showAllBtn.setOnAction(e -> refreshInventoryList());
+	  
+	  HBox searchBox = new HBox(5, searchField, searchBtn, showAllBtn);
+	  
+	  inventoryListView = new ListView<>(inventoryList);
+	  inventoryListView.setPrefHeight(MAIN_LIST_HEIGHT);
+	  inventoryListView.setCellFactory(listView -> new ListCell<BookCopy>()
+	  {
+	        @Override
+	        protected void updateItem(BookCopy copy, boolean empty)
+	        {
+		    super.updateItem(copy, empty);
+		    if (empty || copy == null)
+		    {
+			setText(null);
+		    } else
+		    {
+			String text = copy.getBarCode() + " - " + copy.getBook().getTitle();
+			
+			if (copy.getIsAvailable())
+			{
+			    text += " - Available";
+			} else
+			{
+			    Loan activeLoan = loanManager.getActiveLoanByBookCopy(copy);
+			    if (activeLoan != null)
+			    {
+				text += " - Due: " + activeLoan.getDueDate().format(AMERICAN_DATE_FORMATTER) + " (" + activeLoan.getStudent().getName() + ")";
+			    } else
+			    {
+				text += " - Unavailable";
+			    }
+			}
+			
+			setText(text);
+		    }
+	        }
+	  });
+	  
+	  inventoryListView.getSelectionModel().selectedItemProperty().addListener((obs, old, selected) -> {
+	        if (selected != null) {
+		    displayCopyDetails(selected);
+	        }
+	  });
+	  
+	  Button addCopyBtn = new Button("Add Copy");
+	  addCopyBtn.setOnAction(e -> showAddCopyFromInventoryDialog());
+	  Button deleteCopyBtn = new Button("Delete Copy");
+	  deleteCopyBtn.setOnAction(e -> deleteSelectedCopyFromInventory());
+	  
+	  HBox actionBox = new HBox(10, addCopyBtn, deleteCopyBtn);
+	  
+	  panel.getChildren().addAll(title, searchBox, inventoryListView, actionBox);
+	  return panel;
+      }
+      
+      private VBox createInventoryDetailsPanel()
+      {
+	  VBox panel = new VBox();
+	  panel.setSpacing(10);
+	  panel.setPadding(PADDING_TEN);
+	  
+	  Label title = createHeaderLabel("Copy Details");
+	  
+	  GridPane copyInfoForm = createFormGrid();
+	  copyBarcodeField = new TextField();
+	  copyBarcodeField.setEditable(false);
+	  copyLocationField = new TextField();
+	  copyBookTitleField = new TextField();
+	  copyBookTitleField.setEditable(false);
+	  copyBookIsbnField = new TextField();
+	  copyBookIsbnField.setEditable(false);
+	  
+	  addFormField(copyInfoForm, "Barcode:", copyBarcodeField, 0);
+	  addFormField(copyInfoForm, "Location:", copyLocationField, 1);
+	  addFormField(copyInfoForm, "Book Title:", copyBookTitleField, 2);
+	  addFormField(copyInfoForm, "Book ISBN:", copyBookIsbnField, 3);
+	  
+	  Button updateLocationBtn = new Button("Update Location");
+	  updateLocationBtn.setOnAction(e -> updateCopyLocation());
+	  
+	  Label currentLoanLabel = createSubHeaderLabel("Current Loan Status");
+	  Label currentLoanInfo = new Label();
+	  currentLoanInfo.setWrapText(true);
+	  
+	  Label loanHistoryLabel = createSubHeaderLabel("Loan History");
+	  copyLoanHistoryListView = new ListView<>(copyLoanHistoryList);
+	  copyLoanHistoryListView.setPrefHeight(CHILD_LIST_HEIGHT);
+	  copyLoanHistoryListView.setCellFactory(listView -> new ListCell<Loan>()
+	  {
+	        @Override
+	        protected void updateItem(Loan loan, boolean empty)
+	        {
+		    super.updateItem(loan, empty);
+		    if (empty || loan == null)
+		    {
+			setText(null);
+		    } else
+		    {
+			String status = loan.getReturnDate() == null ? "Current" : 
+				       loan.isOverdue() && loan.getReturnDate() == null ? "Overdue" : "Returned";
+			String returnInfo = loan.getReturnDate() != null ? " - Returned: " + loan.getReturnDate().format(AMERICAN_DATE_FORMATTER) : "";
+			setText(loan.getBorrowDate().format(AMERICAN_DATE_FORMATTER) + " - Due: " + loan.getDueDate().format(AMERICAN_DATE_FORMATTER) + returnInfo + 
+				" - " + loan.getStudent().getName() + " (" + status + ")");
+		    }
+	        }
+	  });
+	  
+	  panel.getChildren().addAll(title, copyInfoForm, updateLocationBtn, 
+				   currentLoanLabel, currentLoanInfo, 
+				   loanHistoryLabel, copyLoanHistoryListView);
+	  return panel;
+      }
+      
+      private void refreshInventoryList()
+      {
+	  inventoryList.clear();
+	  inventoryList.addAll(bookManager.getAllBookCopies());
+      }
+      
+      private void searchInventory(String query)
+      {
+	  if (query == null || query.trim().isEmpty())
+	  {
+	        refreshInventoryList();
+	        return;
+	  }
+	  
+	  inventoryList.clear();
+	  List<BookCopy> allCopies = bookManager.getAllBookCopies();
+	  
+	  for (BookCopy copy : allCopies)
+	  {
+	        if (copy.getBarCode().toLowerCase().contains(query.toLowerCase()) ||
+		    copy.getBook().getTitle().toLowerCase().contains(query.toLowerCase()))
+	        {
+		    inventoryList.add(copy);
+	        }
+	  }
+      }
+      
+      private void displayCopyDetails(BookCopy copy)
+      {
+	  copyBarcodeField.setText(copy.getBarCode());
+	  copyLocationField.setText(copy.getLocation());
+	  copyBookTitleField.setText(copy.getBook().getTitle());
+	  copyBookIsbnField.setText(copy.getBook().getIsbn());
+	  
+	  copyLoanHistoryList.clear();
+	  copyLoanHistoryList.addAll(loanManager.getLoanHistoryForBookCopy(copy));
+	  
+	  inventoryDetailsPanel.setVisible(true);
+      }
+      
+      private void updateCopyLocation()
+      {
+	  BookCopy selectedCopy = inventoryListView.getSelectionModel().getSelectedItem();
+	  if (selectedCopy == null) return;
+	  
+	  try
+	  {
+	        selectedCopy.setLocation(copyLocationField.getText());
+	        bookManager.updateBookCopy(selectedCopy);
+	        refreshInventoryList();
+	        showAlert("Success", "Copy location updated successfully!");
+	  } catch (Exception e)
+	  {
+	        showAlert("Error", "Failed to update copy location: " + e.getMessage());
+	  }
+      }
+      
+      private void showAddCopyFromInventoryDialog()
+      {
+	  List<Book> allBooks = bookManager.getAllBooks();
+	  if (allBooks.isEmpty())
+	  {
+	        showAlert("No Books", "Please add books before creating copies.");
+	        return;
+	  }
+	  
+	  var dialog = new Dialog<BookCopy>();
+	  dialog.setTitle("Add Book Copy");
+	  dialog.setHeaderText("Add a new book copy to inventory");
+	  
+	  var addButtonType = new ButtonType("Add", ButtonBar.ButtonData.OK_DONE);
+	  dialog.getDialogPane().getButtonTypes().addAll(addButtonType, ButtonType.CANCEL);
+	  
+	  GridPane grid = createFormGrid();
+	  grid.setPadding(new Insets(20, 150, 10, 10));
+	  
+	  ComboBox<Book> bookCombo = new ComboBox<>();
+	  bookCombo.getItems().addAll(allBooks);
+	  bookCombo.setConverter(new StringConverter<Book>() {
+	        @Override
+	        public String toString(Book book) {
+		    return book != null ? book.getTitle() + " (" + book.getIsbn() + ")" : "";
+	        }
+	        @Override
+	        public Book fromString(String string) {
+		    return null;
+	        }
+	  });
+	  
+	  TextField barcode = new TextField();
+	  barcode.setPromptText("Barcode");
+	  TextField location = new TextField();
+	  location.setPromptText("Location");
+	  
+	  addFormField(grid, "Book:", bookCombo, 0);
+	  addFormField(grid, "Barcode:", barcode, 1);
+	  addFormField(grid, "Location:", location, 2);
+	  dialog.getDialogPane().setContent(grid);
+	  
+	  dialog.setResultConverter(db -> {
+	        if (db == addButtonType && bookCombo.getValue() != null) {
+		    return new BookCopy(barcode.getText(), location.getText(), bookCombo.getValue());
+	        }
+	        return null;
+	  });
+	  
+	  dialog.showAndWait().ifPresent(newCopy -> {
+	        try {
+		    BookCopy createdCopy = bookManager.createBookCopy(newCopy.getBook(), newCopy.getBarCode(), newCopy.getLocation());
+		    if (createdCopy != null) {
+			refreshInventoryList();
+			refreshBooksList();
+			showAlert("Success", "Book copy added successfully!");
+		    } else {
+			showAlert("Duplicate Barcode", "A copy with this barcode already exists.");
+		    }
+	        } catch (Exception e) {
+		    showAlert("Error", "Failed to add book copy: " + e.getMessage());
+	        }
+	  });
+      }
+      
+      private void deleteSelectedCopyFromInventory()
+      {
+	  BookCopy selectedCopy = inventoryListView.getSelectionModel().getSelectedItem();
+	  if (selectedCopy == null)
+	  {
+	        showAlert("No Selection", "Please select a book copy to delete.");
+	        return;
+	  }
+	  
+	  Alert confirmAlert = new Alert(Alert.AlertType.CONFIRMATION,
+		"Are you sure you want to delete copy " + selectedCopy.getBarCode() + "?",
+		ButtonType.OK, ButtonType.CANCEL);
+	  confirmAlert.setTitle("Confirm Delete");
+	  confirmAlert.setHeaderText("Delete Book Copy");
+	  
+	  confirmAlert.showAndWait().ifPresent(response -> {
+	        if (response == ButtonType.OK) {
+		    try {
+			bookManager.deleteBookCopy(selectedCopy);
+			refreshInventoryList();
+			refreshBooksList();
+			inventoryDetailsPanel.setVisible(false);
+			showAlert("Success", "Book copy deleted successfully!");
+		    } catch (IllegalStateException e) {
+			showAlert("Cannot Delete", e.getMessage());
+		    } catch (Exception e) {
+			showAlert("Error", "Failed to delete book copy: " + e.getMessage());
+		    }
+	        }
+	  });
       }
 }

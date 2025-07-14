@@ -4,10 +4,12 @@ import org.hibernate.Session;
 import org.hibernate.Transaction;
 
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
         public class LoanManager
         {
+	      private static final DateTimeFormatter AMERICAN_DATE_FORMATTER = DateTimeFormatter.ofPattern("MM/dd/yyyy");
 
 	      private static final int MAX_LOAN_DAYS = 180;
 	      private static final int MAX_BORROWED_BOOKS = 5;
@@ -79,6 +81,46 @@ import java.util.List;
 		  return (currentBooksCount + newBooksCount) <= MAX_BORROWED_BOOKS;
 	      }
 
+	      public Loan getActiveLoanByBookCopy(BookCopy bookCopy)
+	      {
+		  Session session = HibernateHelper.getSessionFactory().openSession();
+		  
+		  String hql = "SELECT l FROM Loan l JOIN l.loanedCopies c WHERE c = :bookCopy AND l.returnDate IS NULL";
+		  List<Loan> activeLoans = session.createQuery(hql, Loan.class)
+				  .setParameter("bookCopy", bookCopy)
+				  .getResultList();
+		  
+		  session.close();
+		  
+		  return activeLoans.isEmpty() ? null : activeLoans.get(0);
+	      }
+	      
+	      public List<Loan> getLoanHistoryForBookCopy(BookCopy bookCopy)
+	      {
+		  Session session = HibernateHelper.getSessionFactory().openSession();
+		  
+		  String hql = "SELECT l FROM Loan l JOIN l.loanedCopies c WHERE c = :bookCopy ORDER BY l.borrowDate DESC";
+		  List<Loan> loanHistory = session.createQuery(hql, Loan.class)
+				  .setParameter("bookCopy", bookCopy)
+				  .getResultList();
+		  
+		  session.close();
+		  
+		  return loanHistory;
+	      }
+	      
+	      public List<Loan> getActiveLoans()
+	      {
+		  Session session = HibernateHelper.getSessionFactory().openSession();
+		  
+		  String hql = "FROM Loan l WHERE l.returnDate IS NULL ORDER BY l.borrowDate DESC";
+		  List<Loan> activeLoans = session.createQuery(hql, Loan.class).getResultList();
+		  
+		  session.close();
+		  
+		  return activeLoans;
+	      }
+
 	      public String generateLoanReceipt(Loan loan)
 	      {
 		  StringBuilder receipt = new StringBuilder();
@@ -86,10 +128,10 @@ import java.util.List;
 		  receipt.append("--- LOAN RECEIPT ---\n");
 		  receipt.append("Loan Number: ").append(loan.getLoanNumber()).append("\n");
 		  receipt.append("Student: ").append(loan.getStudent().getName()).append(" (ID: ").append(loan.getStudent().getBroncoId()).append(")\n");
-		  receipt.append("Borrow Date: ").append(loan.getBorrowDate()).append("\n");
-		  receipt.append("Due Date: ").append(loan.getDueDate()).append("\n");
+		  receipt.append("Borrow Date: ").append(loan.getBorrowDate().format(AMERICAN_DATE_FORMATTER)).append("\n");
+		  receipt.append("Due Date: ").append(loan.getDueDate().format(AMERICAN_DATE_FORMATTER)).append("\n");
 		  if (loan.getReturnDate() != null) {
-			  receipt.append("Return Date: ").append(loan.getReturnDate()).append("\n");
+			  receipt.append("Return Date: ").append(loan.getReturnDate().format(AMERICAN_DATE_FORMATTER)).append("\n");
 		  }
 		  receipt.append("\nBorrowed Books:\n");
 		  

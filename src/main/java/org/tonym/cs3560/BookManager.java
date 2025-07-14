@@ -101,5 +101,36 @@ public class BookManager
                 session.close();
                 return books;
         }
+        
+        public List<BookCopy> getAllBookCopies()
+        {
+                Session session = HibernateHelper.getSessionFactory().openSession();
+
+                List<BookCopy> bookCopies = session.createQuery("FROM BookCopy ORDER BY barCode", BookCopy.class).getResultList();
+
+                session.close();
+                return bookCopies;
+        }
+        
+        public BookCopy findBookCopyByBarcode(String barcode)
+        {
+                Session session = HibernateHelper.getSessionFactory().openSession();
+
+                BookCopy bookCopy = session.get(BookCopy.class, barcode);
+
+                session.close();
+                return bookCopy;
+        }
+        
+        public void updateBookCopy(BookCopy bookCopy)
+        {
+                Session session = HibernateHelper.getSessionFactory().openSession();
+                Transaction transaction = session.beginTransaction();
+
+                session.merge(bookCopy);
+
+                transaction.commit();
+                session.close();
+        }
 
 }
