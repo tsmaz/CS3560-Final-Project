@@ -25,7 +25,7 @@ public class Loan
         @Column(name = "returnDate")
         private LocalDate returnDate;
 
-        @ManyToOne(fetch = FetchType.LAZY)
+        @ManyToOne(fetch = FetchType.EAGER)
         @JoinColumn(name = "studentId", nullable = false)
         private Student student;
 
@@ -112,5 +112,12 @@ public class Loan
         public void setLoanedCopies(List<BookCopy> loanedCopies)
         {
 	      this.loanedCopies = loanedCopies;
+        }
+
+        @Override
+        public String toString()
+        {
+                String status = (returnDate != null) ? "Returned" : (isOverdue() ? "Overdue" : "Active");
+                return "Loan #" + loanNumber + " - " + loanedCopies.size() + " books (" + status + ")";
         }
 }

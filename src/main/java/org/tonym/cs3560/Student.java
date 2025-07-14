@@ -23,7 +23,7 @@ public class Student
         @Column(name = "degree")
         private String degree;
 
-        @OneToMany(mappedBy = "student", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+        @OneToMany(mappedBy = "student", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
         private List<Loan> loans = new ArrayList<>();
 
 
@@ -88,5 +88,11 @@ public class Student
         public void setLoans(List<Loan> loans)
         {
 	      this.loans = loans;
+        }
+
+        @Override
+        public String toString()
+        {
+                return name + " (ID: " + broncoId + ")";
         }
 }

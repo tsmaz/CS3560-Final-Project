@@ -17,7 +17,7 @@ public class BookCopy
         @Column(name = "isAvailable", nullable = false)
         private Boolean isAvailable;
 
-        @ManyToOne(fetch = FetchType.LAZY)
+        @ManyToOne(fetch = FetchType.EAGER)
         @JoinColumn(name = "isbn", nullable = false)
         private Book book;
 
@@ -72,5 +72,12 @@ public class BookCopy
         public void setBook(Book book)
         {
 	      this.book = book;
+        }
+
+        @Override
+        public String toString()
+        {
+                String availability = isAvailable ? "Available" : "Loaned Out";
+                return book.getTitle() + " - " + barCode + " (" + availability + ")";
         }
 }

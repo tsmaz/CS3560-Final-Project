@@ -33,7 +33,7 @@ public class Book
         @Column(name = "publicationDate")
         private LocalDate publicationDate;
 
-        @OneToMany(mappedBy = "book", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+        @OneToMany(mappedBy = "book", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
         private List<BookCopy> bookCopies = new ArrayList<>();
 
         public Book()
@@ -130,5 +130,11 @@ public class Book
         public void setBookCopies(List<BookCopy> bookCopies)
         {
 	      this.bookCopies = bookCopies;
+        }
+
+        @Override
+        public String toString()
+        {
+                return title + " by " + authors;
         }
 }
